@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>榮格原型特質測驗 - 量表版</title>
+    <!-- 引入 Chart.js 用來畫精美的雷達圖 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'PingFang TC', sans-serif; background: #f4f5f7; color: #333; padding: 20px; line-height: 1.6; }
+        .container { max-width: 700px; margin: 0 auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+        .quiz-info { text-align: center; color: #7f8c8d; margin-bottom: 40px; font-size: 0.95rem; }
+        
+        .question-block { margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #edeef0; }
+        .question-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 15px; color: #2c3e50; }
+        
+        /* 1-5級分按鈕排版 */
+        .scale-container { display: flex; justify-content: space-between; align-items: center; max-width: 550px; margin: 0 auto; padding: 0 10px; }
+        .scale-label { font-size: 0.85rem; color: #95a5a6; width: 70px; text-align: center; }
+        .scale-options { display: flex; justify-content: space-between; flex-grow: 1; margin: 0 15px; }
+        .scale-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; position: relative; }
+        .scale-item input { margin-bottom: 8px; width: 18px; height: 18px; cursor: pointer; }
+        .scale-num { font-size: 0.85rem; color: #7f8c8d; }
+        
+        button { display: block; width: 100%; padding: 16px; background: #4a90e2; color: white; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; margin-top: 40px; transition: background 0.2s; }
+        button:hover { background: #357abd; }
+        
+        #resultSection { display: none; text-align: center; }
+        .result-title { font-size: 1.8rem; color: #2c3e50; margin-top: 25px; }
+        .chart-container { position: relative; margin: 30px auto; height: 360px; width: 360px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 測驗進行中區塊 -->
+    <div id="quizSection">
+        <h1>榮格原型特質分析</h1>
+        <p class="quiz-info">請依據內心最真實的直覺，評估各個描述符合您的程度（1 為非常不符合，5 為非常符合）</p>
+        <form id="quizForm">
+            <div id="questionsContainer"><!-- 題目由 JavaScript 自動生成 --></div>
+            <button type="button" onclick="submitQuiz()">查看我的原型分析結果</button>
+        </form>
+    </div>
+
+    <!-- 測驗結果區塊 -->
+    <div id="resultSection">
+        <h1>測驗結果</h1>
+        <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+        <div class="result-title">主要原型：<span id="primaryResult" style="color:#4a90e2;"></span></div>
+        <p style="font-size: 1.1rem; color:#7f8c8d; margin-top: 10px;">次要潛在特質：<span id="secondaryResult" style="font-weight:bold; color:#2c3e50;"></span></p>
+        <button onclick="window.location.reload()">重新測驗</button>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// 1. 題庫設定
+// 每一題只需填寫三個欄位：
+// id: 題號
+// text: 描述句（例如：「我總是尋求客觀與真理...」）
+// archetype: 這題的分數要加給哪一個榮格原型
+// ==========================================
+const quizData = [
+   { id: 1, text: "我對生活中如此多的變化感到迷惘。", archetype: "outlaw" },
+{ id: 2, text: "自我療癒的過程使我能夠幫助療癒他人。", archetype: "caregiver" },
+{ id: 3, text: "我曾讓他人失望。", archetype: "everyman" },
+{ id: 4, text: "我將他人的需求置於自己之前。", archetype: "caregiver" },
+{ id: 5, text: "無論身在何處，我都努力保持真實。", archetype: "explorer" },
+{ id: 6, text: "當生活變得乏味時，我喜歡找點樂子、改變現狀。", archetype: "jester" },
+{ id: 7, text: "我覺得自己很有魅力（性感）。", archetype: "lover" },
+{ id: 8, text: "我相信人們並非真心想傷害彼此。", archetype: "innocent" },
+{ id: 9, text: "孩提時代的我曾被忽視或受過傷害。", archetype: "everyman" },
+{ id: 10, text: "我全力擁抱生活。", archetype: "lover" },
+{ id: 11, text: "我透過長遠的目光來保持大局觀。", archetype: "sage" },
+{ id: 12, text: "我正處於創造自己生活的過程中。", archetype: "creator" },
+{ id: 13, text: "我不再是以前那個我以為的自己了。", archetype: "outlaw" },
+{ id: 14, text: "生活就是接踵而至的心碎。", archetype: "everyman" },
+{ id: 15, text: "靈性的幫助成就了我的效率。", archetype: "magician" },
+{ id: 16, text: "人們尋求我的指引。", archetype: "ruler" },
+{ id: 17, text: "我畏懼權威人士。", archetype: "everyman" },
+{ id: 18, text: "我不把規則看得太重。", archetype: "outlaw" },
+{ id: 19, text: "我有許多成就斐然、且對我而言毫不費力的時刻。", archetype: "hero" },
+{ id: 20, text: "我具備領導素質。", archetype: "ruler" },
+{ id: 21, text: "我在尋找改進自己的方法。", archetype: "explorer" },
+{ id: 22, text: "我試圖尋找幻象背後的真相。", archetype: "sage" },
+{ id: 23, text: "改變內在想法會改變我的外在生活。", archetype: "magician" },
+{ id: 24, text: "我開發資源，無論是人力資源還是自然資源。", archetype: "ruler" },
+{ id: 25, text: "我力求客觀。", archetype: "sage" },
+{ id: 26, text: "我的存在往往是變革的催化劑。", archetype: "magician" },
+{ id: 27, text: "我喜歡逗人發笑。", archetype: "jester" },
+{ id: 28, text: "我對大眾感到親切友愛。", archetype: "lover" },
+{ id: 29, text: "我擅長將人的能力與待辦任務進行匹配。", archetype: "ruler" },
+{ id: 30, text: "維持獨立性對我而言至關重要。", archetype: "explorer" },
+{ id: 31, text: "我相信世界上的一切都是相互關聯的。", archetype: "magician" },
+{ id: 32, text: "世界是一個安全的地方。", archetype: "innocent" },
+{ id: 33, text: "我信任過的人拋棄了我。", archetype: "everyman" },
+{ id: 34, text: "我感到焦躁不安。", archetype: "explorer" },
+{ id: 35, text: "我正在放下那些不再適合我的事物。", archetype: "outlaw" },
+{ id: 36, text: "我喜歡讓那些過於嚴肅的人「放鬆點」。", archetype: "jester" },
+{ id: 37, text: "一點混亂對靈魂有益。", archetype: "jester" },
+{ id: 38, text: "為了幫助他人而犧牲，讓我成為了一個更好的人。", archetype: "caregiver" },
+{ id: 39, text: "我很冷靜。", archetype: "sage" },
+{ id: 40, text: "我會挺身對抗冒犯他人的人。", archetype: "hero" },
+{ id: 41, text: "我喜歡轉化（改變）現狀。", archetype: "magician" },
+{ id: 42, text: "生活各個方面成功的關鍵在於自律。", archetype: "hero" },
+{ id: 43, text: "靈感對我而言得來容易。", archetype: "creator" },
+{ id: 44, text: "我沒有達到對自己的期望。", archetype: "hero" },
+{ id: 45, text: "我感覺到一個更美好的世界在某處等著。", archetype: "innocent" },
+{ id: 46, text: "我假設我遇到的人都是值得信賴的。", archetype: "innocent" },
+{ id: 47, text: "我正在經歷將夢想變為現實的過程。", archetype: "creator" },
+{ id: 48, text: "我知道我的需求會得到滿足。", archetype: "innocent" },
+{ id: 49, text: "我覺得想破壞（打破）某些東西。", archetype: "outlaw" },
+{ id: 50, text: "我嘗試以全體的利益為重來處理情況。", archetype: "caregiver" },
+{ id: 51, text: "我很難拒絕他人。", archetype: "caregiver" },
+{ id: 52, text: "我的好主意多到沒時間去實踐。", archetype: "creator" },
+{ id: 53, text: "我正在尋找更好的出路（良禽擇木而棲）。", archetype: "explorer" },
+{ id: 54, text: "我生命中重要的人曾讓我失望。", archetype: "everyman" },
+{ id: 55, text: "尋找某物的過程與找到它同樣重要。", archetype: "explorer" },
+];
+
+// 12 原型中文名稱對照表
+const archetypeNames = {
+    innocent: "天真者", sage: "智者", explorer: "探險家", outlaw: "反叛者",
+    hero: "英雄", magician: "魔術師", everyman: "凡夫俗子", lover: "情人",
+    jester: "愚者", caregiver: "照顧者", creator: "創造者", ruler: "統治者"
+};
+
+// ==========================================
+// 2. 自動渲染 1-5 級分題目到網頁上
+// ==========================================
+const container = document.getElementById('questionsContainer');
+quizData.forEach((q, index) => {
+    let html = `
+        <div class="question-block">
+            <div class="question-title">${index + 1}. ${q.text}</div>
+            <div class="scale-container">
+                <span class="scale-label">非常不符合</span>
+                <div class="scale-options">
+    `;
+    
+    // 生成 1 到 5 的級分按鈕
+    for (let score = 1; score <= 5; score++) {
+        // 將該題綁定的原型和分數儲存在 radio value 中
+        const valStr = JSON.stringify({ archetype: q.archetype, score: score });
+        html += `
+            <label class="scale-item">
+                <input type="radio" name="q_${q.id}" value='${valStr}' required>
+                <span class="scale-num">${score}</span>
+            </label>
+        `;
+    }
+    
+    html += `
+                </div>
+                <span class="scale-label">非常符合</span>
+            </div>
+        </div>
+    `;
+    container.innerHTML += html;
+});
+
+// ==========================================
+// 3. 計算分數與產出結果核心引擎
+// ==========================================
+function submitQuiz() {
+    // 初始化 12 原型計分板
+    let scores = {
+        innocent: 0, sage: 0, explorer: 0, outlaw: 0, hero: 0, magician: 0,
+        everyman: 0, lover: 0, jester: 0, caregiver: 0, creator: 0, ruler: 0
+    };
+
+    const form = document.getElementById('quizForm');
+    const formData = new FormData(form);
+    
+    // 檢查是否有題目漏寫
+    let answeredCount = 0;
+    for (let pair of formData.entries()) { answeredCount++; }
+    if (answeredCount < quizData.length) {
+        alert("您還有題目尚未填答喔！為了確保結果精準，請檢查並填完所有題目。");
+        return;
+    }
+
+    // 讀取點選的級分，直接累加到對應的原型變數
+    for (let value of formData.values()) {
+        const data = JSON.parse(value);
+        scores[data.archetype] += data.score;
+    }
+
+    // 排序原型分數，抓出前兩名
+    let sorted = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
+    let primary = sorted[0];
+    let secondary = sorted[1];
+
+    // 切換顯示區塊
+    document.getElementById('quizSection').style.display = 'none';
+    document.getElementById('resultSection').style.display = 'block';
+
+    // 填入文字結果
+    document.getElementById('primaryResult').innerText = archetypeNames[primary];
+    document.getElementById('secondaryResult').innerText = archetypeNames[secondary];
+
+    // 滾動回到頂部看結果
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 繪製雷達圖
+    drawRadarChart(scores);
+}
+
+// ==========================================
+// 4. 繪製雷達圖功能
+// ==========================================
+function drawRadarChart(scores) {
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    
+    const labels = Object.keys(scores).map(key => archetypeNames[key]);
+    const dataValues = Object.keys(scores).map(key => scores[key]);
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '原型能量強度',
+                data: dataValues,
+                backgroundColor: 'rgba(74, 144, 226, 0.2)',
+                borderColor: 'rgba(74, 144, 226, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(74, 144, 226, 1)',
+                pointRadius: 3
+            }]
+        },
+        options: {
+            scales: {
+                r: {
+                    ticks: { display: false },
+                    suggestedMin: 0
+                }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+</script>
+</body>
+</html>
